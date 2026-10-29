@@ -6,8 +6,6 @@ import { prisma } from "@/lib/db/client";
 import { ensureWorkspaceForUser, getPrimaryWorkspace } from "@/lib/workspace";
 import { isEmailAllowedToSignIn } from "@/lib/env";
 
-type AdapterPrismaClient = Parameters<typeof PrismaAdapter>[0];
-
 const emailFrom = process.env.EMAIL_FROM ?? "OpenReply <login@example.com>";
 // Setting EMAIL_SERVER switches magic links to your own SMTP server, for
 // self-hosters who do not want a third-party mail service. Resend stays the
@@ -21,6 +19,7 @@ const smtpServer = process.env.EMAIL_SERVER;
 export const EMAIL_PROVIDER_ID = smtpServer ? "nodemailer" : "resend";
 
 export const authConfig = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   adapter: (PrismaAdapter as any)(prisma, { schema: "openreply" }),
   providers: [
     smtpServer
