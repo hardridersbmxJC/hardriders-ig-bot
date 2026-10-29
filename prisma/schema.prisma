@@ -1,12 +1,14 @@
 // ManyChat Alternative — B2B Instagram Comment → DM SaaS schema
 
 generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../app/generated/prisma"
+  previewFeatures = ["multiSchema"]
 }
 
 datasource db {
   provider = "postgresql"
+  schemas  = ["openreply"]
 }
 
 model User {
@@ -23,6 +25,8 @@ model User {
   ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
   workspaceMembers  WorkspaceMember[]
   sentInvitations   WorkspaceInvitation[] @relation("WorkspaceInvitationsSent")
+
+  @@schema("openreply")
 }
 
 model Account {
@@ -43,6 +47,8 @@ model Account {
 
   @@unique([provider, providerAccountId])
   @@index([userId])
+
+  @@schema("openreply")
 }
 
 model Session {
@@ -54,6 +60,8 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+
+  @@schema("openreply")
 }
 
 model VerificationToken {
@@ -62,6 +70,8 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+
+  @@schema("openreply")
 }
 
 model Workspace {
@@ -87,6 +97,8 @@ model Workspace {
   operationalEvents OperationalEvent[]
 
   @@index([ownerId])
+
+  @@schema("openreply")
 }
 
 model WorkspaceMember {
@@ -101,6 +113,8 @@ model WorkspaceMember {
 
   @@unique([workspaceId, userId])
   @@index([userId])
+
+  @@schema("openreply")
 }
 
 model WorkspaceInvitation {
@@ -123,6 +137,8 @@ model WorkspaceInvitation {
   @@index([email])
   @@index([workspaceId])
   @@index([status])
+
+  @@schema("openreply")
 }
 
 model InstagramAccount {
@@ -146,6 +162,8 @@ model InstagramAccount {
   followerSnapshots FollowerSnapshot[]
 
   @@index([workspaceId])
+
+  @@schema("openreply")
 }
 
 /// Daily follower total for one account. Instagram only retains ~30 days of
@@ -166,6 +184,8 @@ model FollowerSnapshot {
 
   @@unique([instagramAccountId, date])
   @@index([instagramAccountId, date])
+
+  @@schema("openreply")
 }
 
 model Automation {
@@ -218,6 +238,8 @@ model Automation {
   @@index([workspaceId])
   @@index([instagramAccountId])
   @@index([postId])
+
+  @@schema("openreply")
 }
 
 model DmLog {
@@ -256,6 +278,8 @@ model DmLog {
   @@index([automationId])
   @@index([instagramAccountId])
   @@index([status])
+
+  @@schema("openreply")
 }
 
 // Legacy reconciliation model; currently unwired. Runtime code does not read
@@ -269,6 +293,8 @@ model ProcessedComment {
   seenAt             DateTime @default(now())
 
   @@index([instagramAccountId])
+
+  @@schema("openreply")
 }
 
 model TrackedLink {
@@ -292,6 +318,8 @@ model TrackedLink {
 
   @@index([workspaceId])
   @@index([automationId])
+
+  @@schema("openreply")
 }
 
 model LinkClick {
@@ -319,6 +347,8 @@ model LinkClick {
   @@index([trackedLinkId])
   @@index([createdAt])
   @@index([workspaceId, createdAt])
+
+  @@schema("openreply")
 }
 
 model WebhookEvent {
@@ -335,6 +365,8 @@ model WebhookEvent {
 
   @@index([workspaceId])
   @@index([status])
+
+  @@schema("openreply")
 }
 
 model OperationalEvent {
@@ -353,12 +385,16 @@ model OperationalEvent {
   @@index([source])
   @@index([level])
   @@index([createdAt])
+
+  @@schema("openreply")
 }
 
 enum WorkspaceRole {
   OWNER
   ADMIN
   MEMBER
+
+  @@schema("openreply")
 }
 
 enum WorkspaceInvitationStatus {
@@ -366,6 +402,8 @@ enum WorkspaceInvitationStatus {
   ACCEPTED
   REVOKED
   EXPIRED
+
+  @@schema("openreply")
 }
 
 enum DmStatus {
@@ -376,12 +414,16 @@ enum DmStatus {
   SKIPPED_RATE_LIMIT
   SKIPPED_PLAN_LIMIT
   SKIPPED_NO_MATCH
+
+  @@schema("openreply")
 }
 
 enum WebhookStatus {
   PENDING
   PROCESSED
   FAILED
+
+  @@schema("openreply")
 }
 
 enum OperationalEventSource {
@@ -389,18 +431,24 @@ enum OperationalEventSource {
   TOKEN_REFRESH
   HEALTH
   SYSTEM
+
+  @@schema("openreply")
 }
 
 enum OperationalEventLevel {
   INFO
   WARNING
   ERROR
+
+  @@schema("openreply")
 }
 
 
 enum InstagramProvider {
   META
   ZERNIO
+
+  @@schema("openreply")
 }
 
 model ZernioConnection {
@@ -412,10 +460,14 @@ model ZernioConnection {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@schema("openreply")
 }
 
 // Claims persist independently of BullMQ retention so old taps never resend.
 model PostbackDelivery {
   id String @id
   createdAt DateTime @default(now())
+
+  @@schema("openreply")
 }
