@@ -5,11 +5,22 @@ const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
 };
 
+function extractSchemaFromUrl(url: string): string | undefined {
+  try {
+    const parsed = new URL(url);
+    return parsed.searchParams.get("schema") ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function createPrismaClient() {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error("DATABASE_URL environment variable is required");
   }
+
+  const schema = extractSchemaFromUrl(databaseUrl) ?? "openreply";
 
   // Without an explicit cap, pg.Pool opens up to 10 connections per process and
   // the adapter was only given the connection string. On serverless every warm
@@ -19,11 +30,14 @@ function createPrismaClient() {
   // exhausted pool. The cap is per-environment: small on Vercel, a bit higher
   // on the worker, which is a single long-lived process.
   return new PrismaClient({
-    adapter: new PrismaPg({
-      connectionString: databaseUrl,
-      max: Number(process.env.DB_POOL_MAX ?? 3),
-      idleTimeoutMillis: 10_000,
-    }),
+    adapter: new PrismaPg(
+      {
+        connectionString: databaseUrl,
+        max: Number(process.env.DB_POOL_MAX ?? 3),
+        idleTimeoutMillis: 10_000,
+      },
+      { schema }
+    ),
   });
 }
 
