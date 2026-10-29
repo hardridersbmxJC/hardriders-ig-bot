@@ -1,0 +1,6 @@
+services:
+  - type: worker
+    name: hardriders-ig-worker
+    runtime: node
+    buildCommand: npm ci && npx prisma generate
+    startCommand: npm run worker
