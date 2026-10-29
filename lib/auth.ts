@@ -21,7 +21,7 @@ const smtpServer = process.env.EMAIL_SERVER;
 export const EMAIL_PROVIDER_ID = smtpServer ? "nodemailer" : "resend";
 
 export const authConfig = {
-  adapter: PrismaAdapter(prisma as unknown as AdapterPrismaClient),
+  adapter: (PrismaAdapter as any)(prisma, { schema: "openreply" }),
   providers: [
     smtpServer
       ? Nodemailer({ server: smtpServer, from: emailFrom })
