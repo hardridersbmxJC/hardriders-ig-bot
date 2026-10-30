@@ -5,6 +5,11 @@ import { lintCaption, type CaptionAnalysis } from "@/lib/ai/caption-linter";
 import { humanize } from "@/lib/ai/humanizer";
 import { scoreHook, type HookScoreResult } from "@/lib/ai/hookscore";
 import { analyzeBeats, formatTimecode, type BeatAnalysisResult } from "@/lib/ai/beats";
+import {
+  analyzeViralBatch,
+  type ViralBatchAnalysis,
+  type ReelPerformanceData,
+} from "@/lib/ai/viral-analyzer";
 
 const DEFAULT_CAPTION =
   "Descubre el secreto que nadie te cuenta sobre cómo ajustar tu cuadro de BMX sin romper las vainas. La mayoría de riders cometen el error de apretar sin verificar la alineación primero.\n\nComenta CUADRO y te enviamos la guía técnica completa al DM con las medidas exactas 🚲⚡\n\n#bmx #bmxstreet #hardriders #bmxlife #ridebmx";
@@ -16,8 +21,53 @@ const DEFAULT_SCRIPT =
   "Revisa siempre las marcas de soldadura antes de salir a la calle.\n" +
   "Deja de comprar piezas baratas de BMX.";
 
+const DEFAULT_VIRAL_INPUT =
+  "450000 | Deja de comprar piezas baratas de BMX ahora mismo\n" +
+  "85000 | 5 años de street riding me enseñaron esto sobre cuadros\n" +
+  "14000 | Sesión de street en el skatepark con el team\n" +
+  "12500 | Ajustando la tensión de cadena en 2 minutos\n" +
+  "9800 | Nuevo drop de bujes sellados Hardriders\n" +
+  "185000 | $200 perdidos en una horquilla de imitación\n" +
+  "11200 | Probando pegs de plástico vs aluminio\n" +
+  "13000 | Calentamiento previo al session de trucos";
+
+function parseViralInput(raw: string, baselineOverride?: number): ReelPerformanceData[] {
+  const lines = raw.split("\n").map((l) => l.trim()).filter(Boolean);
+  const reels: ReelPerformanceData[] = [];
+
+  for (const line of lines) {
+    if (line.startsWith("#")) continue;
+
+    if (line.includes("|") || line.includes("\t")) {
+      const parts = line.includes("|") ? line.split("|") : line.split("\t");
+      const views = parseInt(parts[0].replace(/[^\d]/g, ""), 10);
+      const hook = parts.slice(1).join(" ").trim();
+      if (!isNaN(views) && views > 0) {
+        reels.push({
+          views,
+          hook: hook || undefined,
+          median: baselineOverride && baselineOverride > 0 ? baselineOverride : undefined,
+        });
+      }
+    } else {
+      const tokens = line.split(/[,\s]+/).filter(Boolean);
+      for (const tok of tokens) {
+        const views = parseInt(tok.replace(/[^\d]/g, ""), 10);
+        if (!isNaN(views) && views > 0) {
+          reels.push({
+            views,
+            median: baselineOverride && baselineOverride > 0 ? baselineOverride : undefined,
+          });
+        }
+      }
+    }
+  }
+
+  return reels;
+}
+
 export default function StudioPage() {
-  const [activeTab, setActiveTab] = useState<"caption" | "reels">("caption");
+  const [activeTab, setActiveTab] = useState<"caption" | "reels" | "viral">("caption");
 
   // --- Panel A State (Caption & Humanizer) ---
   const [captionText, setCaptionText] = useState(DEFAULT_CAPTION);
@@ -69,6 +119,16 @@ export default function StudioPage() {
     });
   }, [scriptText, wpmRate, targetLength]);
 
+  // --- Panel C State (Viral Analyzer / Outliers) ---
+  const [viralInputText, setViralInputText] = useState(DEFAULT_VIRAL_INPUT);
+  const [customBaseline, setCustomBaseline] = useState<string>("");
+
+  const viralAnalysis: ViralBatchAnalysis = useMemo(() => {
+    const baselineNum = customBaseline.trim() ? parseInt(customBaseline.replace(/[^\d]/g, ""), 10) : undefined;
+    const parsed = parseViralInput(viralInputText, baselineNum && !isNaN(baselineNum) ? baselineNum : undefined);
+    return analyzeViralBatch(parsed);
+  }, [viralInputText, customBaseline]);
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -78,15 +138,15 @@ export default function StudioPage() {
             AI Creator Studio
           </h1>
           <p className="text-sm text-muted mt-1">
-            Auditoría de ganchos virales, simulación de corte de feed de Instagram y cronometraje de retención.
+            Auditoría de ganchos virales, corte de feed a 125 caracteres y cálculo del Outlier Multiple.
           </p>
         </div>
 
         {/* Tab Switcher */}
-        <div className="inline-flex rounded-lg border border-border bg-surface p-1 shrink-0">
+        <div className="inline-flex rounded-lg border border-border bg-surface p-1 shrink-0 overflow-x-auto max-w-full">
           <button
             onClick={() => setActiveTab("caption")}
-            className={`px-4 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors ${
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
               activeTab === "caption"
                 ? "bg-foreground text-background shadow-sm"
                 : "text-muted hover:text-foreground"
@@ -96,13 +156,23 @@ export default function StudioPage() {
           </button>
           <button
             onClick={() => setActiveTab("reels")}
-            className={`px-4 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors ${
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
               activeTab === "reels"
                 ? "bg-foreground text-background shadow-sm"
                 : "text-muted hover:text-foreground"
             }`}
           >
             Panel B: Reel Script & Beats
+          </button>
+          <button
+            onClick={() => setActiveTab("viral")}
+            className={`px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-md transition-colors whitespace-nowrap ${
+              activeTab === "viral"
+                ? "bg-foreground text-background shadow-sm"
+                : "text-muted hover:text-foreground"
+            }`}
+          >
+            Panel C: Analizador Viral (Outliers)
           </button>
         </div>
       </div>
@@ -551,6 +621,207 @@ export default function StudioPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* PANEL C: VIRAL ANALYZER & OUTLIER MULTIPLES                              */}
+      {/* ========================================================================= */}
+      {activeTab === "viral" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Left Column: Data Input */}
+          <div className="lg:col-span-5 space-y-4">
+            <div className="rounded-xl border border-border bg-surface p-5 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-foreground">
+                  Ingreso de Vistas y Reels Recientes
+                </label>
+                <span className="text-xs text-muted">
+                  {viralAnalysis.totalReels} entradas detectadas
+                </span>
+              </div>
+
+              <p className="text-xs text-muted leading-relaxed">
+                Ingresa una publicación por línea con el formato <code className="bg-background px-1 py-0.5 rounded border border-border">vistas | gancho o título</code>, o simplemente una lista de números.
+              </p>
+
+              <textarea
+                value={viralInputText}
+                onChange={(e) => setViralInputText(e.target.value)}
+                rows={10}
+                placeholder="Ejemplo:&#10;450000 | Mi mejor truco de BMX&#10;12000 | Sesión de street en el parque&#10;180000 | $200 perdidos en una horquilla"
+                className="w-full rounded-lg border border-border bg-background p-3.5 text-xs text-foreground font-mono placeholder:text-muted focus:border-foreground focus:ring-1 focus:ring-foreground transition-all resize-y leading-relaxed"
+              />
+
+              {/* Optional Custom Baseline */}
+              <div className="pt-2 border-t border-border/60">
+                <label className="text-xs font-medium text-foreground block mb-1">
+                  Mediana típica de la cuenta (Opcional):
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={customBaseline}
+                    onChange={(e) => setCustomBaseline(e.target.value)}
+                    placeholder="Auto (calculada desde la muestra)"
+                    className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted focus:ring-1 focus:ring-foreground"
+                  />
+                  {customBaseline && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomBaseline("")}
+                      className="px-2.5 py-1.5 text-xs text-muted hover:text-foreground border border-border rounded-lg bg-background"
+                    >
+                      Limpiar
+                    </button>
+                  )}
+                </div>
+                <span className="text-[11px] text-muted block mt-1">
+                  Si se deja en blanco, el cálculo usará la mediana estadística exacta de los videos ingresados.
+                </span>
+              </div>
+            </div>
+
+            {/* Principle Card */}
+            <div className="rounded-xl border border-border bg-surface p-5 space-y-2 text-xs">
+              <span className="font-semibold text-foreground flex items-center gap-1.5">
+                <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+                ¿Por qué el Outlier Multiple?
+              </span>
+              <p className="text-muted leading-relaxed">
+                Las vistas brutas engañan. Una cuenta con 2M de seguidores haciendo 400k vistas tuvo un día flojo. Una cuenta de 4k seguidores haciendo 400k vistas descubrió una anomalía viral (<strong className="text-foreground">100x sobre su mediana</strong>). Esta métrica aísla lo que realmente funciona para tu audiencia.
+              </p>
+            </div>
+          </div>
+
+          {/* Right Column: Outlier Analysis Results */}
+          <div className="lg:col-span-7 space-y-4">
+            {/* Top Stat Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="p-4 rounded-xl border border-border bg-surface space-y-1">
+                <span className="text-xs text-muted block">Mediana de Vistas</span>
+                <span className="text-lg sm:text-xl font-bold text-foreground font-mono">
+                  {viralAnalysis.sampleMedianViews.toLocaleString()}
+                </span>
+                <span className="text-[10px] text-muted block">Línea base ({viralAnalysis.baselineType})</span>
+              </div>
+
+              <div className="p-4 rounded-xl border border-border bg-surface space-y-1">
+                <span className="text-xs text-muted block">Mayor Outlier</span>
+                <span className="text-lg sm:text-xl font-bold text-orange-600 font-mono">
+                  {viralAnalysis.reels.length > 0 ? `${viralAnalysis.reels[0].outlierMultiple.toFixed(1)}x` : "—"}
+                </span>
+                <span className="text-[10px] text-muted block">Máximo multiplicador</span>
+              </div>
+
+              <div className="col-span-2 sm:col-span-1 p-4 rounded-xl border border-border bg-surface space-y-1">
+                <span className="text-xs text-muted block">Fórmula Líder</span>
+                <span className="text-sm font-bold text-foreground truncate block">
+                  {viralAnalysis.topFormulas.length > 0 ? viralAnalysis.topFormulas[0].formulaName : "Sin fórmulas"}
+                </span>
+                <span className="text-[10px] text-muted block">
+                  {viralAnalysis.topFormulas.length > 0 ? `${viralAnalysis.topFormulas[0].count} en el tercio superior` : "En la muestra"}
+                </span>
+              </div>
+            </div>
+
+            {/* Outlier Multiple Leaderboard Table */}
+            <div className="rounded-xl border border-border bg-surface p-5 space-y-3">
+              <div className="flex items-center justify-between pb-2 border-b border-border">
+                <div>
+                  <h2 className="text-sm font-semibold text-foreground">
+                    Ranking de Reels por Outlier Multiple
+                  </h2>
+                  <span className="text-xs text-muted">
+                    Ordenado por factor de multiplicación sobre la mediana ({viralAnalysis.sampleMedianViews.toLocaleString()} vistas)
+                  </span>
+                </div>
+              </div>
+
+              {viralAnalysis.reels.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted">
+                  Ingresa vistas en el panel izquierdo para calcular la mediana y los múltiplos.
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
+                  {viralAnalysis.reels.map((reel, idx) => {
+                    const isMassive = reel.outlierMultiple >= 5.0;
+                    const isHigh = reel.outlierMultiple >= 2.0 && reel.outlierMultiple < 5.0;
+                    const isUnder = reel.outlierMultiple < 1.0;
+
+                    return (
+                      <div
+                        key={idx}
+                        className={`p-3.5 rounded-lg border transition-all text-xs space-y-2 ${
+                          isMassive
+                            ? "bg-amber-500/5 border-amber-500/40 shadow-xs"
+                            : isHigh
+                            ? "bg-emerald-500/5 border-emerald-500/30"
+                            : "bg-background border-border hover:border-border-hover"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-6 h-6 rounded-full bg-border/60 flex items-center justify-center font-bold text-[11px] text-foreground">
+                              #{idx + 1}
+                            </span>
+                            <div>
+                              <span className="font-mono font-bold text-foreground text-sm">
+                                {reel.views.toLocaleString()} vistas
+                              </span>
+                              <span className="text-[11px] text-muted ml-2">
+                                (Base: {reel.baseline.toLocaleString()})
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Multiple Badge */}
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-3 py-1 rounded-full font-mono text-xs font-extrabold ${
+                                isMassive
+                                  ? "bg-amber-500 text-zinc-950 shadow-xs"
+                                  : isHigh
+                                  ? "bg-emerald-500/15 text-emerald-600 border border-emerald-500/30"
+                                  : isUnder
+                                  ? "bg-zinc-100 text-zinc-500 border border-zinc-200"
+                                  : "bg-blue-500/10 text-blue-600 border border-blue-500/20"
+                              }`}
+                            >
+                              {reel.outlierMultiple.toFixed(1)}x {isMassive ? "🔥 Outlier" : isHigh ? "⚡ Alto" : ""}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Hook details if present */}
+                        {reel.hook && (
+                          <div className="pt-1 border-t border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px]">
+                            <p className="text-foreground font-medium italic truncate max-w-sm">
+                              &quot;{reel.hook}&quot;
+                            </p>
+                            <div className="flex items-center gap-2 shrink-0">
+                              {reel.formulaName && reel.formulaName !== "unclassified" && (
+                                <span className="px-2 py-0.5 rounded bg-surface border border-border text-foreground font-semibold">
+                                  {reel.formulaName}
+                                </span>
+                              )}
+                              {reel.hookScore !== undefined && (
+                                <span className="text-muted font-mono">
+                                  Hook Score: <strong className="text-foreground">{reel.hookScore}</strong>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
