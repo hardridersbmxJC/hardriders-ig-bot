@@ -37,7 +37,8 @@ export async function POST(request: NextRequest) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro" });
+    const modelName = process.env.GEMINI_MODEL || "gemini-1.5-pro";
+    const model = genAI.getGenerativeModel({ model: modelName });
 
     const prompt = `[DEFINICIÓN DE PERSONA]:
 Eres el guionista principal y director de retención de HARDRIDERSCREW.
