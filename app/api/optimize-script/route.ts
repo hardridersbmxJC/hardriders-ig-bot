@@ -37,38 +37,59 @@ export async function POST(request: NextRequest) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelName = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-    const model = genAI.getGenerativeModel({ model: modelName });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.1-pro" });
 
-    const prompt = `Eres un guionista y director de montaje experto en Reels de Instagram con máxima retención.
-Reescribe y optimiza el siguiente guion aplicando las reglas de oro de retención algorítmica:
+    const prompt = `[DEFINICIÓN DE PERSONA]:
+Eres el guionista principal y director de retención de HARDRIDERSCREW.
+Tu tono es agresivo, de autoridad pura, implacable, fundamentado en la ciencia biomecánica, el acondicionamiento físico de élite y sin rodeos.
+Está ESTRICTAMENTE PROHIBIDO usar saludos cordiales, lenguaje suave, rodeos, introducciones genéricas o clichés de creadores de contenido. Vas directo al impacto físico y mecánico.
 
-REGLAS ESTRICTAS DE OPTIMIZACIÓN:
+[REGLAS MATEMÁTICAS DE RETENCIÓN]:
 1. LÍNEA 1 (EL GANCHO):
    - Debe tener entre 5 y 12 palabras (locución en menos de 2.5 segundos).
-   - Incluye datos concretos (cifras, precios en dólares o cantidades).
-   - Incluye tensión o advertencia (ej. "deja de", "el peor error", "nunca", "perdí $200").
-   - Coloca el impacto en las 3 primeras palabras.
+   - Incluye datos concretos (cifras exactas, pesos, precios o magnitudes físicas).
+   - Carga el impacto y la tensión en las primeras 3 palabras (ej. "Tus muñecas absorben", "Destruyes tu chasis", "Perdí $200").
    - Dirígete al espectador directamente (segunda persona o imperativo).
-   - PROHIBIDO saludos, presentaciones o pedir "no deslices".
+   - PROHIBIDO saludos, introducciones o pedir "no deslices".
 
-2. CORTES DINÁMICOS (MÁXIMO 4 SEGUNDOS POR LÍNEA):
-   - A 165 palabras por minuto, 11 palabras ya superan los 4 segundos estáticos.
-   - OBLIGATORIO: Fuerza saltos de línea continuos. Cada línea debe tener entre 4 y 9 palabras máximo.
-   - Si una oración tiene más de 9 palabras, divídela en 2 o 3 líneas separadas para obligar a un corte de cámara.
+2. CORTES VISUALES Y LÍNEAS DE 4 A 9 PALABRAS:
+   - A 165 palabras por minuto, cualquier frase de más de 9 palabras sobrepasa los 4 segundos estáticos y destruye la retención.
+   - OBLIGATORIO: Fuerza saltos de línea continuos. Cada línea debe contener entre 4 y 9 palabras máximo.
+   - Si una oración tiene más de 9 palabras, divídela en 2 o 3 líneas separadas para forzar un cambio de plano de cámara en el montaje.
 
-3. BUCLE DE AUDIO (LOOPING):
-   - La última línea DEBE repetir una palabra clave de la primera línea para generar retención en reproducción automática.
+3. VOCABULARIO HARDRIDERS:
+   - Usa conceptos de chasis, armadura, fuerzas de reacción, palancas, tensión isométrica, fatiga estructural y biomecánica cruda.
 
-4. FORMATO DE SALIDA:
+4. BUCLE DE AUDIO FINAL (LOOPING):
+   - La última línea del guion DEBE repetir o hacer eco de una palabra clave de la primera línea para que el video reinicie fluidamente en bucle.
+
+5. FORMATO DE SALIDA ESTRICTO:
    - Entrega ÚNICAMENTE las líneas de texto del guion resultante, exactamente una línea por beat.
    - NO agregues títulos, viñetas, comentarios, ni etiquetas como "Beat 1:".
    - NO uses bloques de código markdown (\`\`\`). Solo texto plano.
 
-GUION ORIGINAL:
+[EJEMPLO DE TRANSFORMACIÓN (FEW-SHOT)]:
+
+[GUION CRUDO]:
+Hola riders, hoy les voy a contar por qué les duelen tanto las muñecas y los tobillos cuando caen de un salto alto en la bicicleta y qué ejercicios pueden hacer para que no les duela tanto la espalda.
+
+[GUION OPTIMIZADO]:
+Tus muñecas absorben 400 kilos de impacto.
+No es falta de técnica.
+Es debilidad en tu chasis óseo.
+Cada recepción sin armadura muscular
+transmite la fuerza de reacción directa a tus articulaciones.
+Entrena tensión isométrica en antebrazos.
+Acondiciona tendones antes de volver a saltar.
+O seguirás destruyendo tus muñecas en cada caída.
+
+---
+AHORA TRANSFORMA ESTE GUION APLICANDO LA MISMA PRECISIÓN:
+
+[GUION CRUDO]:
 ${script}
 
-GUION OPTIMIZADO:`;
+[GUION OPTIMIZADO]:`;
 
     const result = await model.generateContent(prompt);
     let optimizedText = result.response.text().trim();
