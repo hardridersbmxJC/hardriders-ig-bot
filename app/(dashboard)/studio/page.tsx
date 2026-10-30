@@ -100,6 +100,11 @@ export default function StudioPage() {
   const [scriptText, setScriptText] = useState(DEFAULT_SCRIPT);
   const [wpmRate, setWpmRate] = useState<number>(165);
   const [targetLength, setTargetLength] = useState<number>(30);
+  const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
+  const [optimizeStatus, setOptimizeStatus] = useState<{
+    text: string;
+    type: "success" | "error";
+  } | null>(null);
 
   const firstLine = useMemo(() => {
     const lines = scriptText.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -118,6 +123,44 @@ export default function StudioPage() {
       targetSeconds: targetLength > 0 ? targetLength : undefined,
     });
   }, [scriptText, wpmRate, targetLength]);
+
+  const handleOptimizeScriptWithGemini = async () => {
+    if (!scriptText.trim()) return;
+    setIsOptimizing(true);
+    setOptimizeStatus(null);
+
+    try {
+      const res = await fetch("/api/optimize-script", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ script: scriptText }),
+      });
+
+      const data = await res.json();
+      if (data.success && data.optimizedScript) {
+        setScriptText(data.optimizedScript);
+        setOptimizeStatus({
+          text: "¡Guion optimizado con Gemini! Se reforzó el gancho y se dividieron las líneas para eliminar planos > 4s.",
+          type: "success",
+        });
+      } else {
+        setOptimizeStatus({
+          text: data.error || "No se pudo optimizar el guion con Gemini.",
+          type: "error",
+        });
+      }
+    } catch {
+      setOptimizeStatus({
+        text: "Error de red al conectar con el endpoint de optimización.",
+        type: "error",
+      });
+    } finally {
+      setIsOptimizing(false);
+      setTimeout(() => {
+        setOptimizeStatus(null);
+      }, 7000);
+    }
+  };
 
   // --- Panel C State (Viral Analyzer / Outliers) ---
   const [viralInputText, setViralInputText] = useState(DEFAULT_VIRAL_INPUT);
@@ -508,6 +551,62 @@ export default function StudioPage() {
                   </select>
                 </div>
               </div>
+
+              {/* Gemini Script Optimizer Button */}
+              <div className="pt-2 border-t border-border/60">
+                <button
+                  type="button"
+                  onClick={handleOptimizeScriptWithGemini}
+                  disabled={isOptimizing}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white text-xs sm:text-sm font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg
+                    className={`w-4 h-4 ${isOptimizing ? "animate-spin" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    {isOptimizing ? (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                      />
+                    ) : (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M13 10V3L4 14h7v7l9-11h-7z"
+                      />
+                    )}
+                  </svg>
+                  <span>
+                    {isOptimizing ? "Optimizando con Gemini AI..." : "Optimizar Guion con Gemini"}
+                  </span>
+                </button>
+              </div>
+
+              {/* Optimize Status Banner */}
+              {optimizeStatus && (
+                <div
+                  className={`p-3 rounded-lg text-xs flex items-start gap-2.5 animate-fade-in ${
+                    optimizeStatus.type === "success"
+                      ? "bg-emerald-500/10 text-emerald-800 border border-emerald-500/30"
+                      : "bg-red-500/10 text-red-800 border border-red-500/30"
+                  }`}
+                >
+                  <svg className="w-4 h-4 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span className="leading-relaxed">{optimizeStatus.text}</span>
+                </div>
+              )}
             </div>
 
             {/* Hook Analysis Card (First Line Evaluation) */}
