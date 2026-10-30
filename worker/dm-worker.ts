@@ -1,10 +1,16 @@
-import { createDMWorker } from "@/lib/queue/dm-worker";
+import { createDMWorker, setMessageFilterMiddleware } from "@/lib/queue/dm-worker";
+import { humanizeMiddleware } from "@/lib/ai/humanizer";
 import { recordWorkerHeartbeat } from "@/lib/ops/worker-health";
 import { reconcileComments } from "@/lib/polling/comment-reconciler";
 import { attachPendingNextReels } from "@/lib/automation/attach-next-reel";
 import os from "node:os";
 
-const worker = createDMWorker();
+// Inyecta el filtro de humanizer como middleware para sanear las respuestas automáticas de Meta
+setMessageFilterMiddleware(humanizeMiddleware);
+
+const worker = createDMWorker({
+  messageFilterMiddleware: humanizeMiddleware,
+});
 const startedAt = new Date().toISOString();
 const HEARTBEAT_INTERVAL_MS = 30_000;
 // Polling safety net for comments that webhooks miss. Runs in the worker because

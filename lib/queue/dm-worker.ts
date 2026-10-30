@@ -54,6 +54,19 @@ import { TRACKED_LINK_ORDER } from "@/lib/tracking/link-order";
 import { hashRecipientId } from "@/lib/tracking/server";
 
 import { ZernioApiError } from "@/lib/zernio/client";
+import { humanizeMiddleware } from "@/lib/ai/humanizer";
+
+export type MessageFilterMiddleware = (text: string) => string;
+
+let messageFilterMiddleware: MessageFilterMiddleware = humanizeMiddleware;
+
+export function setMessageFilterMiddleware(middleware: MessageFilterMiddleware) {
+  messageFilterMiddleware = middleware;
+}
+
+export function filterOutgoingMessage(text: string): string {
+  return messageFilterMiddleware ? messageFilterMiddleware(text) : text;
+}
 
 const BACKOFF_DELAYS = [5 * 60 * 1000, 15 * 60 * 1000, 45 * 60 * 1000];
 
@@ -213,21 +226,25 @@ async function sendRevealDirectMessage({
       context: accessToken,
       instagramAccountId: automation.instagramAccount.instagramId,
       userId: userId,
-      message: renderMessageWithTracking({
-        message: automation.dmMessage,
-        commenterName,
-        trackedLinks: automation.trackedLinks,
-      }),
+      message: filterOutgoingMessage(
+        renderMessageWithTracking({
+          message: automation.dmMessage,
+          commenterName,
+          trackedLinks: automation.trackedLinks,
+        })
+      ),
     });
     return;
   }
 
   // Try button template first; if Meta rejects it, fall back to inline links.
   const bodyText =
-    renderMessageWithoutLink({
-      message: automation.dmMessage,
-      commenterName,
-    }) || "Here's your link:";
+    filterOutgoingMessage(
+      renderMessageWithoutLink({
+        message: automation.dmMessage,
+        commenterName,
+      })
+    ) || "Here's your link:";
   const recipientToken = hashRecipientId(userId);
   const buttons = buildLinkButtons(
     automation.trackedLinks,
@@ -257,12 +274,14 @@ async function sendRevealDirectMessage({
         context: accessToken,
         instagramAccountId: automation.instagramAccount.instagramId,
         userId: userId,
-        message: buildInlineLinkFallback(
-          automation.dmMessage,
-          commenterName,
-          automation.trackedLinks,
-          bodyText,
-          recipientToken
+        message: filterOutgoingMessage(
+          buildInlineLinkFallback(
+            automation.dmMessage,
+            commenterName,
+            automation.trackedLinks,
+            bodyText,
+            recipientToken
+          )
         ),
       });
     } catch (fallbackError) {
@@ -460,11 +479,13 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     ) {
       try {
         const chosen = replyPool[Math.floor(Math.random() * replyPool.length)];
-        const publicReply = renderMessageWithTracking({
-          message: chosen,
-          commenterName,
-          trackedLinks: automation.trackedLinks,
-        });
+        const publicReply = filterOutgoingMessage(
+          renderMessageWithTracking({
+            message: chosen,
+            commenterName,
+            trackedLinks: automation.trackedLinks,
+          })
+        );
         await sendCommentReply({
           context: accessToken,
           commentId: commentId,
@@ -664,11 +685,13 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
     let delivered = false;
     try {
       if (useOpeningDm) {
-        const openingText = renderMessageWithTracking({
-          message: automation.openingDmMessage as string,
-          commenterName,
-          trackedLinks: [],
-        });
+        const openingText = filterOutgoingMessage(
+          renderMessageWithTracking({
+            message: automation.openingDmMessage as string,
+            commenterName,
+            trackedLinks: [],
+          })
+        );
         await sendPrivateReplyWithButton({
           context: accessToken,
           instagramAccountId: automation.instagramAccount.instagramId,
@@ -681,12 +704,14 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           postId: mediaId,
         });
       } else if (sendFollowPrompt) {
-        const promptText = renderMessageWithoutLink({
-          message:
-            automation.followPromptMessage ||
-            "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over",
-          commenterName,
-        });
+        const promptText = filterOutgoingMessage(
+          renderMessageWithoutLink({
+            message:
+              automation.followPromptMessage ||
+              "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over",
+            commenterName,
+          })
+        );
         await sendPrivateReplyWithButton({
           context: accessToken,
           instagramAccountId: automation.instagramAccount.instagramId,
@@ -699,10 +724,12 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
       } else if (automation.trackedLinks.length > 0) {
         // Try button template first; if Meta rejects it, fall back to inline links.
         const bodyText =
-          renderMessageWithoutLink({
-            message: automation.dmMessage,
-            commenterName,
-          }) || "Here's your link:";
+          filterOutgoingMessage(
+            renderMessageWithoutLink({
+              message: automation.dmMessage,
+              commenterName,
+            })
+          ) || "Here's your link:";
         const buttons = buildLinkButtons(
           automation.trackedLinks,
           automation.linkButtonLabel,
@@ -728,12 +755,14 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
             "[DM Worker] Button template rejected, falling back to inline link:",
             formatError(buttonError)
           );
-          const fallbackMessage = buildInlineLinkFallback(
-            automation.dmMessage,
-            commenterName,
-            automation.trackedLinks,
-            bodyText,
-            hashRecipientId(commenterId)
+          const fallbackMessage = filterOutgoingMessage(
+            buildInlineLinkFallback(
+              automation.dmMessage,
+              commenterName,
+              automation.trackedLinks,
+              bodyText,
+              hashRecipientId(commenterId)
+            )
           );
           try {
             await sendPrivateReply({
@@ -748,12 +777,14 @@ async function processComment(job: Job<ProcessCommentJob>): Promise<void> {
           }
         }
       } else {
-        const dmMessage = renderMessageWithTracking({
-          message: automation.dmMessage,
-          commenterName,
-          trackedLinks: automation.trackedLinks,
-          recipientToken: hashRecipientId(commenterId),
-        });
+        const dmMessage = filterOutgoingMessage(
+          renderMessageWithTracking({
+            message: automation.dmMessage,
+            commenterName,
+            trackedLinks: automation.trackedLinks,
+            recipientToken: hashRecipientId(commenterId),
+          })
+        );
         await sendPrivateReply({
           context: accessToken,
           instagramAccountId: automation.instagramAccount.instagramId,
@@ -863,7 +894,7 @@ async function sendFollowRecheckAck({
     );
     if (first !== "OK") return;
     const send = () =>
-      sendDirectMessage({ context, instagramAccountId, userId, message });
+      sendDirectMessage({ context, instagramAccountId, userId, message: filterOutgoingMessage(message) });
     // Its own id: the tap's id is claimed later by the link or prompt that
     // the re-check sends, and claiming it here would suppress that message.
     // Without an id the Redis NX above is the only dedupe.
@@ -1050,12 +1081,14 @@ async function processPostback(job: Job<ProcessPostbackJob>): Promise<void> {
           .catch(() => {});
       }
 
-      const promptText = renderMessageWithoutLink({
-        message:
-          automation.followPromptMessage ||
-          "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over",
-        commenterName,
-      });
+      const promptText = filterOutgoingMessage(
+        renderMessageWithoutLink({
+          message:
+            automation.followPromptMessage ||
+            "quick favor before i send your link. i don't make any money from this, it's free. if you want to support me, just don't unfollow after, and star the repo on github if it helps you. tap the button once you're following and i'll send it over",
+          commenterName,
+        })
+      );
       try {
         await sendPostbackOnce({
           operationId,
@@ -1255,10 +1288,12 @@ async function processFollowUp(job: Job<ProcessFollowUpJob>): Promise<void> {
       context: accessToken,
       instagramAccountId: automation.instagramAccount.instagramId,
       userId: userId,
-      message: renderMessageWithoutLink({
-        message: automation.followUpMessage,
-        commenterName: commenterName ?? null,
-      }),
+      message: filterOutgoingMessage(
+        renderMessageWithoutLink({
+          message: automation.followUpMessage,
+          commenterName: commenterName ?? null,
+        })
+      ),
     });
   } catch (error) {
     console.log(
@@ -1438,12 +1473,14 @@ async function processMessage(job: Job<ProcessMessageJob>): Promise<void> {
 
     try {
       if (sendFollowPrompt) {
-        const promptText = renderMessageWithoutLink({
-          message:
-            automation.followPromptMessage ||
-            "Almost there! Follow me and tap the button below to grab your link 💛",
-          commenterName,
-        });
+        const promptText = filterOutgoingMessage(
+          renderMessageWithoutLink({
+            message:
+              automation.followPromptMessage ||
+              "Almost there! Follow me and tap the button below to grab your link 💛",
+            commenterName,
+          })
+        );
         await sendDirectMessageWithButton({
           context: accessToken,
           instagramAccountId: automation.instagramAccount.instagramId,
@@ -1604,7 +1641,12 @@ async function recordWorkerFailure(
   }
 }
 
-export function createDMWorker(): Worker<DmQueueJob> {
+export function createDMWorker(options?: {
+  messageFilterMiddleware?: MessageFilterMiddleware;
+}): Worker<DmQueueJob> {
+  if (options?.messageFilterMiddleware) {
+    setMessageFilterMiddleware(options.messageFilterMiddleware);
+  }
   const worker = new Worker<DmQueueJob>("dm-processing", processJob, {
     connection: getRedisConnection(),
     concurrency: 5,
