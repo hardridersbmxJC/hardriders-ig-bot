@@ -122,12 +122,77 @@ export default function StudioPage() {
   // --- Panel C State (Viral Analyzer / Outliers) ---
   const [viralInputText, setViralInputText] = useState(DEFAULT_VIRAL_INPUT);
   const [customBaseline, setCustomBaseline] = useState<string>("");
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncStatus, setSyncStatus] = useState<{
+    text: string;
+    type: "success" | "error" | "info";
+  } | null>(null);
 
   const viralAnalysis: ViralBatchAnalysis = useMemo(() => {
     const baselineNum = customBaseline.trim() ? parseInt(customBaseline.replace(/[^\d]/g, ""), 10) : undefined;
     const parsed = parseViralInput(viralInputText, baselineNum && !isNaN(baselineNum) ? baselineNum : undefined);
     return analyzeViralBatch(parsed);
   }, [viralInputText, customBaseline]);
+
+  const handleSyncInstagramHistory = async () => {
+    setIsSyncing(true);
+    setSyncStatus({ text: "Conectando con la base de datos de publicaciones...", type: "info" });
+
+    try {
+      // Intenta primero el endpoint dedicado de viral history
+      let response = await fetch("/api/instagram/posts/viral-history");
+      let data = await response.json();
+
+      // Si falla o no tiene posts, usa el endpoint de overview como fallback
+      if (!data.success || !data.posts || data.posts.length === 0) {
+        response = await fetch("/api/instagram/overview?count=50");
+        const overviewData = await response.json();
+        if (overviewData.success && overviewData.data?.posts) {
+          data = {
+            success: true,
+            account: overviewData.data.account,
+            posts: overviewData.data.posts.map((p: { views: number | null; reach: number | null; likes: number; caption: string | null }) => ({
+              views: p.views ?? p.reach ?? (p.likes * 10),
+              firstLine: (p.caption?.trim() || "").split("\n")[0]?.trim() || "",
+            })),
+          };
+        }
+      }
+
+      if (data.success && data.posts && data.posts.length > 0) {
+        interface RawPost {
+          views?: number;
+          firstLine?: string;
+          caption?: string;
+        }
+        const lines = data.posts.map((p: RawPost) => {
+          const views = p.views && p.views > 0 ? p.views : 100;
+          const hook = (p.firstLine || (p.caption ? p.caption.split("\n")[0] : "") || "Publicación de Instagram").trim();
+          return `${views} | ${hook}`;
+        });
+
+        setViralInputText(lines.join("\n"));
+        const username = data.account?.username ? `@${data.account.username}` : "tu cuenta";
+        setSyncStatus({
+          text: `¡Historial sincronizado! Se cargaron ${data.posts.length} publicaciones de ${username}. Mediana calculada en tiempo real.`,
+          type: "success",
+        });
+      } else {
+        const errorMsg = data.error || "No se encontraron publicaciones con datos de visualizaciones.";
+        setSyncStatus({ text: errorMsg, type: "error" });
+      }
+    } catch {
+      setSyncStatus({
+        text: "Error de red al sincronizar con Instagram. Revisa tu conexión.",
+        type: "error",
+      });
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => {
+        setSyncStatus((prev) => (prev?.type === "info" ? null : prev));
+      }, 5000);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -630,20 +695,67 @@ export default function StudioPage() {
       {/* ========================================================================= */}
       {activeTab === "viral" && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Column: Data Input */}
+          {/* Left Column: Data Input & Sync */}
           <div className="lg:col-span-5 space-y-4">
             <div className="rounded-xl border border-border bg-surface p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-semibold text-foreground">
                   Ingreso de Vistas y Reels Recientes
                 </label>
-                <span className="text-xs text-muted">
-                  {viralAnalysis.totalReels} entradas detectadas
+                <span className="text-xs text-muted font-medium">
+                  {viralAnalysis.totalReels} entradas
                 </span>
               </div>
 
+              {/* Sync Button */}
+              <div>
+                <button
+                  type="button"
+                  onClick={handleSyncInstagramHistory}
+                  disabled={isSyncing}
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-foreground text-background hover:opacity-90 text-xs sm:text-sm font-medium shadow-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg
+                    className={`w-4 h-4 ${isSyncing ? "animate-spin" : ""}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  <span>{isSyncing ? "Sincronizando con Instagram..." : "Sincronizar Historial de Instagram"}</span>
+                </button>
+              </div>
+
+              {/* Sync Status Banner */}
+              {syncStatus && (
+                <div
+                  className={`p-3 rounded-lg text-xs flex items-start gap-2.5 animate-fade-in ${
+                    syncStatus.type === "success"
+                      ? "bg-emerald-500/10 text-emerald-800 border border-emerald-500/30"
+                      : syncStatus.type === "error"
+                      ? "bg-red-500/10 text-red-800 border border-red-500/30"
+                      : "bg-blue-500/10 text-blue-800 border border-blue-500/30"
+                  }`}
+                >
+                  <svg className="w-4 h-4 shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <span className="leading-relaxed">{syncStatus.text}</span>
+                </div>
+              )}
+
               <p className="text-xs text-muted leading-relaxed">
-                Ingresa una publicación por línea con el formato <code className="bg-background px-1 py-0.5 rounded border border-border">vistas | gancho o título</code>, o simplemente una lista de números.
+                Ingresa una publicación por línea con el formato <code className="bg-background px-1 py-0.5 rounded border border-border">vistas | gancho o título</code>, o pulsa el botón superior para sincronizar las publicaciones reales de la cuenta.
               </p>
 
               <textarea
@@ -743,7 +855,7 @@ export default function StudioPage() {
 
               {viralAnalysis.reels.length === 0 ? (
                 <div className="py-8 text-center text-xs text-muted">
-                  Ingresa vistas en el panel izquierdo para calcular la mediana y los múltiplos.
+                  Ingresa vistas en el panel izquierdo o pulsa &quot;Sincronizar Historial de Instagram&quot; para calcular la mediana y los múltiplos.
                 </div>
               ) : (
                 <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
