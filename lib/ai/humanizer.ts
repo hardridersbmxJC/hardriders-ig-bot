@@ -1070,7 +1070,6 @@ export const SLOP_LEXICON: SlopLexicon = {
 };
 
 const URL_RE = /https?:\/\/\S+|www\.\S+|\S+@\S+\.\S+/gi;
-const SENTENCE_RE = /[^.!?\n]+[.!?]*/g;
 
 function parseCodePoint(spec: string): number | [number, number] {
   if (spec.includes('-')) {

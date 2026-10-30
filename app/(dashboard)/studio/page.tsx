@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { lintCaption, type CaptionAnalysis } from "@/lib/ai/caption-linter";
-import { humanize, humanizeText } from "@/lib/ai/humanizer";
+import { humanize } from "@/lib/ai/humanizer";
 import { scoreHook, type HookScoreResult } from "@/lib/ai/hookscore";
 import { analyzeBeats, formatTimecode, type BeatAnalysisResult } from "@/lib/ai/beats";
 
@@ -308,7 +308,7 @@ export default function StudioPage() {
                 <span className="font-semibold text-foreground block mb-0.5">
                   Regla de los 125 caracteres:
                 </span>
-                El usuario decide si continúa viendo en el primer renglón. Todo lo que esté fuera de la ventana resaltada requiere un toque activo en "... más".
+                El usuario decide si continúa viendo en el primer renglón. Todo lo que esté fuera de la ventana resaltada requiere un toque activo en &quot;... más&quot;.
               </div>
             </div>
           </div>
@@ -382,7 +382,7 @@ export default function StudioPage() {
                   <div>
                     <span className="text-xs text-muted block font-mono">LÍNEA 1 / GANCHO</span>
                     <h3 className="text-sm font-semibold text-foreground truncate max-w-xs sm:max-w-md">
-                      "{hookScoreResult.hook}"
+                      &quot;{hookScoreResult.hook}&quot;
                     </h3>
                   </div>
 
