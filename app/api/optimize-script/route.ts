@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelName = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+    const modelName = "gemini-3.8-flash";
     const model = genAI.getGenerativeModel({ model: modelName });
 
     const prompt = `[DEFINICIÓN DE PERSONA]:
