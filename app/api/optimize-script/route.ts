@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getCurrentWorkspaceId } from "@/lib/auth";
 
-export const maxDuration = 30;
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,8 +28,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const script = typeof body.script === "string" ? body.script.trim() : "";
+    let script = "";
+    try {
+      const body = await request.json();
+      script = typeof body?.script === "string" ? body.script.trim() : "";
+    } catch {
+      return NextResponse.json(
+        { success: false, error: "El cuerpo de la solicitud no es un JSON válido." },
+        { status: 400 }
+      );
+    }
 
     if (!script) {
       return NextResponse.json(
@@ -93,7 +103,8 @@ ${script}
 [GUION OPTIMIZADO]:`;
 
     const result = await model.generateContent(prompt);
-    let optimizedText = result.response.text().trim();
+    const response = await result.response;
+    let optimizedText = (typeof response?.text === "function" ? response.text() : "").trim();
 
     // Eliminar posibles bloques de markdown residuales
     optimizedText = optimizedText
